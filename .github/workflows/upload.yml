@@ -1,0 +1,29 @@
+name: tg-upload
+
+on:
+  repository_dispatch:
+    types: [tg-upload]
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install
+        run: pip install pyrogram==2.0.106 tgcrypto requests
+      - name: Upload to Telegram
+        env:
+          TG_API_ID: ${{ secrets.TG_API_ID }}
+          TG_API_HASH: ${{ secrets.TG_API_HASH }}
+          TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
+          P_CHAT_ID: ${{ github.event.client_payload.chat_id }}
+          P_MSG_ID: ${{ github.event.client_payload.msg_id }}
+          P_URL: ${{ github.event.client_payload.url }}
+          P_TITLE: ${{ github.event.client_payload.title }}
+        run: |
+          echo "::add-mask::$P_URL"
+          python upload.py
