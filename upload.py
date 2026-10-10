@@ -76,6 +76,28 @@ def progress(current, total):
         status("📤 Uploading to Telegram.. " + str(current * 100 // total) + "%")
 
 
+def remux(src):
+    out = "fixed.mp4"
+    attempts = [
+        # 1) lossless: copy streams into a clean, seekable MP4
+        ["ffmpeg", "-y", "-i", src, "-map", "0:v:0", "-map", "0:a:0?", "-c", "copy",
+         "-movflags", "+faststart", out],
+        # 2) only if that fails: re-encode
+        ["ffmpeg", "-y", "-i", src, "-map", "0:v:0", "-map", "0:a:0?", "-c:v", "libx264",
+         "-preset", "veryfast", "-crf", "23", "-c:a", "aac", "-movflags", "+faststart", out],
+    ]
+    for cmd in attempts:
+        try:
+            subprocess.run(cmd, check=True, timeout=1200,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            if os.path.exists(out) and os.path.getsize(out) > 100 * 1024:
+                print("remux ok")
+                return out
+        except Exception as e:
+            print("remux attempt failed:", e)
+    return src
+
+
 async def main():
     path = "video.mp4"
     status("⬇️ Preparing the file..")
@@ -85,6 +107,10 @@ async def main():
         fail("download: " + str(e))
     if size < 100 * 1024:
         fail("the server returned a tiny file (" + str(size) + " bytes), the link may have expired")
+
+    status("🛠 Making the video seekable..")
+    path = remux(path)
+    size = os.path.getsize(path)
     if size > 1950 * 1024 * 1024:
         fail("file is larger than Telegram's 2 GB limit")
 
