@@ -33,19 +33,29 @@ def fail(reason):
 
 
 def download(path):
-    done, last = 0, 0.0
-    with requests.get(URL, stream=True, timeout=60, headers={"User-Agent": "Mozilla/5.0"}) as r:
-        r.raise_for_status()
-        total = int(r.headers.get("Content-Length") or 0)
-        with open(path, "wb") as f:
-            for chunk in r.iter_content(1024 * 1024):
-                f.write(chunk)
-                done += len(chunk)
-                if time.time() - last > 8:
-                    last = time.time()
-                    extra = (" " + str(done * 100 // total) + "%") if total else (" " + str(done // 1048576) + " MB")
-                    status("⬇️ Preparing the file.." + extra)
-    return done
+    last_err = None
+    for attempt in range(1, 3):
+        done, last = 0, 0.0
+        try:
+            status("⬇️ Preparing the file.." + (" (try " + str(attempt) + " of 2)" if attempt > 1 else ""))
+            with requests.get(URL, stream=True, timeout=(30, 420), headers={"User-Agent": "Mozilla/5.0"}) as r:
+                print("download HTTP", r.status_code, r.headers.get("Content-Type"), r.headers.get("Content-Length"))
+                r.raise_for_status()
+                total = int(r.headers.get("Content-Length") or 0)
+                with open(path, "wb") as f:
+                    for chunk in r.iter_content(1024 * 1024):
+                        f.write(chunk)
+                        done += len(chunk)
+                        if time.time() - last > 8:
+                            last = time.time()
+                            extra = (" " + str(done * 100 // total) + "%") if total else (" " + str(done // 1048576) + " MB")
+                            status("⬇️ Preparing the file.." + extra)
+            return done
+        except Exception as e:
+            last_err = e
+            print("download attempt", attempt, "failed:", e)
+            time.sleep(15)
+    raise last_err
 
 
 def probe(path):
