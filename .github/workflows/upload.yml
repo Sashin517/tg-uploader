@@ -14,18 +14,24 @@ jobs:
         with:
           python-version: '3.11'
       - name: Install
-        run: pip install pyrogram==2.0.106 tgcrypto requests
-      - name: Install ffmpeg
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+        run: |
+          pip install pyrogram==2.0.106 tgcrypto requests
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
       - name: Upload to Telegram
         env:
           TG_API_ID: ${{ secrets.TG_API_ID }}
           TG_API_HASH: ${{ secrets.TG_API_HASH }}
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
+          RAPIDAPI_KEY: ${{ secrets.RAPIDAPI_KEY }}
           P_CHAT_ID: ${{ github.event.client_payload.chat_id }}
           P_MSG_ID: ${{ github.event.client_payload.msg_id }}
           P_URL: ${{ github.event.client_payload.url }}
           P_TITLE: ${{ github.event.client_payload.title }}
+          P_YT: ${{ github.event.client_payload.yt }}
+          P_START: ${{ github.event.client_payload.start }}
+          P_END: ${{ github.event.client_payload.end }}
+          P_Q: ${{ github.event.client_payload.q }}
+          P_X: ${{ github.event.client_payload.x }}
         run: |
           echo "::add-mask::$P_URL"
           python upload.py
