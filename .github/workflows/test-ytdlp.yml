@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       url:
-        description: 'https://www.pornhub.com/view_video.php?viewkey=6a3aff6d6b947'
+        description: 'Video page link'
         required: true
 
 jobs:
