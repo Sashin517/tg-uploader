@@ -1,4 +1,4 @@
-import os, re, sys, time, json, asyncio, subprocess
+import os, re, sys, time, json, glob, asyncio, subprocess
 import requests
 from pyrogram import Client
 
@@ -262,6 +262,34 @@ async def audio_main():
     status("done uploading! 🙊❤️")
     print("OK")
 
+def ytdlp_download(page, height, out):
+    h = str(height) if str(height).isdigit() else "720"
+    for f in glob.glob("dl_video.*"):
+        os.remove(f)
+    fmt = "b[height<=" + h + "]/bv*[height<=" + h + "]+ba/b"
+    cmd = ["yt-dlp", "--no-playlist", "--newline", "--concurrent-fragments", "4",
+           "-f", fmt, "--merge-output-format", "mp4", "-o", "dl_video.%(ext)s", page]
+    status("⬇️ Downloading from the source..")
+    last_line, last_t, started = "", 0.0, time.time()
+    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1)
+    for line in p.stdout:
+        line = line.strip()
+        if line:
+            last_line = line
+            print(line[:200])
+        m = re.search(r"\[download\]\s+([\d.]+)%", line)
+        if m and time.time() - last_t > 8:
+            last_t = time.time()
+            status("⬇️ Downloading from the source.. " + m.group(1) + "%")
+        if time.time() - started > 1500:
+            p.kill()
+            raise RuntimeError("yt-dlp took too long")
+    p.wait()
+    files = [f for f in glob.glob("dl_video.*") if not f.endswith(".part") and not f.endswith(".ytdl")]
+    if p.returncode != 0 or not files:
+        raise RuntimeError("yt-dlp failed: " + last_line[:200])
+    os.replace(files[0], out)
+    return os.path.getsize(out)
 
 async def main():
     if X.get("mode") == "audio":
@@ -269,14 +297,28 @@ async def main():
         return
 
     path = "video.mp4"
-    try:
-        size = download(path)
-    except Exception as e:
-        print("converter download failed:", e)
-        if clipper_fallback(path):
-            size = os.path.getsize(path)
-        else:
-            fail("download: " + str(e))
+    if X.get("mode") == "ytdlp":
+        try:
+            size = ytdlp_download(URL, X.get("h"), path)
+        except Exception as e:
+            print("yt-dlp failed:", e)
+            dl = X.get("dl") or ""
+            if not dl:
+                fail("yt-dlp: " + str(e))
+            status("🔁 Trying the backup source..")
+            try:
+                size = fetch_to(dl, path, 300)
+            except Exception as e2:
+                fail("yt-dlp: " + str(e) + " | backup: " + str(e2))
+    else:
+        try:
+            size = download(path)
+        except Exception as e:
+            print("converter download failed:", e)
+            if clipper_fallback(path):
+                size = os.path.getsize(path)
+            else:
+                fail("download: " + str(e))
     if size < 100 * 1024:
         fail("the server returned a tiny file (" + str(size) + " bytes), the link may have expired")
 
@@ -289,9 +331,9 @@ async def main():
     w, h, d = probe(path)
     th = thumb(path)
     safe = "".join(c for c in TITLE if c not in '\\/:*?"<>|')[:60] or "video"
+    spoiler = bool(X.get("spoiler"))
     status("📤 Uploading to Telegram..")
 
-    spoiler = bool(X.get("spoiler"))
     async with Client("uploader", api_id=API_ID, api_hash=API_HASH, bot_token=TOKEN, in_memory=True) as app:
         try:
             await app.send_video(CHAT, path, caption=TITLE, duration=d, width=w, height=h,
