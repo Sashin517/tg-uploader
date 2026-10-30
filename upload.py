@@ -291,10 +291,17 @@ async def main():
     safe = "".join(c for c in TITLE if c not in '\\/:*?"<>|')[:60] or "video"
     status("📤 Uploading to Telegram..")
 
+    spoiler = bool(X.get("spoiler"))
     async with Client("uploader", api_id=API_ID, api_hash=API_HASH, bot_token=TOKEN, in_memory=True) as app:
-        await app.send_video(CHAT, path, caption=TITLE, duration=d, width=w, height=h,
-                             thumb=th, supports_streaming=True, file_name=safe + ".mp4",
-                             progress=progress)
+        try:
+            await app.send_video(CHAT, path, caption=TITLE, duration=d, width=w, height=h,
+                                 thumb=th, supports_streaming=True, file_name=safe + ".mp4",
+                                 progress=progress, has_spoiler=spoiler)
+        except TypeError:
+            # this Pyrogram version has no spoiler option: send normally
+            await app.send_video(CHAT, path, caption=TITLE, duration=d, width=w, height=h,
+                                 thumb=th, supports_streaming=True, file_name=safe + ".mp4",
+                                 progress=progress)
     status("done uploading! 🙊❤️")
     print("OK")
 
