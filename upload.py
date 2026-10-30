@@ -262,12 +262,21 @@ async def audio_main():
     status("done uploading! 🙊❤️")
     print("OK")
 
+def fmt_eta(s):
+    s = (s or "").strip()
+    if not re.match(r"^\d+(:\d+){1,2}$", s):
+        return ""
+    secs = 0
+    for p in s.split(":"):
+        secs = secs * 60 + int(p)
+    return "under a minute left" if secs < 60 else "~" + str(round(secs / 60)) + " min left"
+
 def ytdlp_download(page, height, out):
     h = str(height) if str(height).isdigit() else "720"
     for f in glob.glob("dl_video.*"):
         os.remove(f)
     fmt = "b[height<=" + h + "]/bv*[height<=" + h + "]+ba/b"
-    cmd = ["yt-dlp", "--no-playlist", "--newline", "--concurrent-fragments", "4",
+    cmd = ["yt-dlp", "--no-playlist", "--newline", "--concurrent-fragments", "8",
            "-f", fmt, "--merge-output-format", "mp4", "-o", "dl_video.%(ext)s", page]
     status("⬇️ Downloading from the source..")
     last_line, last_t, started = "", 0.0, time.time()
@@ -277,10 +286,11 @@ def ytdlp_download(page, height, out):
         if line:
             last_line = line
             print(line[:200])
-        m = re.search(r"\[download\]\s+([\d.]+)%", line)
+        m = re.search(r"\[download\]\s+([\d.]+)%.*?at\s+(\S+/s)\s+ETA\s+(\S+)", line)
         if m and time.time() - last_t > 8:
             last_t = time.time()
-            status("⬇️ Downloading from the source.. " + m.group(1) + "%")
+            eta = fmt_eta(m.group(3))
+            status("⬇️ Downloading from the source.. " + m.group(1) + "% · " + m.group(2) + (" · " + eta if eta else ""))
         if time.time() - started > 1500:
             p.kill()
             raise RuntimeError("yt-dlp took too long")
@@ -292,6 +302,7 @@ def ytdlp_download(page, height, out):
     return os.path.getsize(out)
 
 async def main():
+    T0 = time.time()
     if X.get("mode") == "audio":
         await audio_main()
         return
@@ -344,7 +355,8 @@ async def main():
             await app.send_video(CHAT, path, caption=TITLE, duration=d, width=w, height=h,
                                  thumb=th, supports_streaming=True, file_name=safe + ".mp4",
                                  progress=progress)
-    status("done uploading! 🙊❤️")
+    secs = int(time.time() - T0)
+    status("done uploading! 🙊❤️ (took " + str(secs // 60) + " min " + str(secs % 60) + " s)")
     print("OK")
 
 
