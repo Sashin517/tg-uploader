@@ -1,0 +1,29 @@
+name: test-ytdlp
+
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: 'https://www.pornhub.com/view_video.php?viewkey=6a3aff6d6b947'
+        required: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Where is this runner?
+        run: curl -s https://ipinfo.io/json | grep -E '"(country|region|city|org)"'
+      - name: Install
+        run: pip install -U "yt-dlp[default,curl-cffi]"
+      - name: Try 1 - plain (formats only, nothing is downloaded)
+        env:
+          URL: ${{ github.event.inputs.url }}
+        run: yt-dlp -F "$URL" || true
+      - name: Try 2 - browser impersonation (formats only)
+        env:
+          URL: ${{ github.event.inputs.url }}
+        run: yt-dlp --impersonate chrome -F "$URL" || true
