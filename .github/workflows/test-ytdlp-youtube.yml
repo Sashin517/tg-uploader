@@ -1,0 +1,40 @@
+name: test-ytdlp-youtube
+
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: 'YouTube video link'
+        required: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Where is this runner, and is Node available?
+        run: |
+          curl -s https://ipinfo.io/json | grep -E '"(country|region|city|org)"' || true
+          node --version || echo "node not found"
+      - name: Install
+        run: pip install -U "yt-dlp[default,curl-cffi]"
+      - name: A - Node as the JavaScript runtime (formats only)
+        env:
+          URL: ${{ github.event.inputs.url }}
+        run: yt-dlp --js-runtimes node -F "$URL" 2>&1 | tail -25 || true
+      - name: B - Node plus other YouTube player clients (formats only)
+        env:
+          URL: ${{ github.event.inputs.url }}
+        run: yt-dlp --js-runtimes node --extractor-args "youtube:player_client=tv_simply,web_safari,mweb" -F "$URL" 2>&1 | tail -25 || true
+      - name: C - with cookies (skipped unless the YT_COOKIES secret exists)
+        env:
+          URL: ${{ github.event.inputs.url }}
+          YT_COOKIES: ${{ secrets.YT_COOKIES }}
+        run: |
+          if [ -z "$YT_COOKIES" ]; then echo "No YT_COOKIES secret set, skipping"; exit 0; fi
+          printf '%s' "$YT_COOKIES" > cookies.txt
+          yt-dlp --js-runtimes node --cookies cookies.txt -F "$URL" 2>&1 | tail -25 || true
+          rm -f cookies.txt
