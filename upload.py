@@ -350,6 +350,7 @@ async def main():
         fail("the server returned a tiny file (" + str(size) + " bytes), the link may have expired")
 
     status("🛠 Making the video seekable..")
+    path = ensure_h264(path)
     path = remux(path)
     size = os.path.getsize(path)
     if size > 1950 * 1024 * 1024:
