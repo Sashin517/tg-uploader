@@ -26,11 +26,16 @@ jobs:
           yt-dlp --version
       - name: List formats
         run: yt-dlp -F "$FB_URL" || true
-      - name: Download best
+      - name: Download hd/sd (progressive)
         run: |
-          yt-dlp -f "bv*+ba/b" --merge-output-format mp4 -o fb.%(ext)s "$FB_URL" || echo "FB DOWNLOAD FAILED"
-          ls -lh fb.* || true
-          ffprobe -v error -show_entries format=duration,size -of default=nw=1 fb.mp4 || true
+          yt-dlp -f "hd/sd" -o 'fb_prog.%(ext)s' "$FB_URL" || echo "PROGRESSIVE FAILED"
+          ls -lh fb_prog.* || true
+          ffprobe -v error -show_entries stream=codec_name,width,height -show_entries format=duration,size -of default=nw=1 fb_prog.mp4 || true
+      - name: Download best DASH + audio
+        run: |
+          yt-dlp -f "bv*+ba/b" --merge-output-format mp4 -o 'fb_dash.%(ext)s' "$FB_URL" || echo "DASH FAILED"
+          ls -lh fb_dash.* || true
+          ffprobe -v error -show_entries stream=codec_name,width,height -show_entries format=duration,size -of default=nw=1 fb_dash.mp4 || true
 
   soundcloud:
     runs-on: ubuntu-latest
