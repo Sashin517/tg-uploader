@@ -1,0 +1,53 @@
+name: Test yt-dlp Facebook + SoundCloud
+on:
+  workflow_dispatch:
+    inputs:
+      fb_url:
+        description: "Public Facebook video/reel URL"
+        required: true
+      sc_query:
+        description: "Spotify-style search (artist + title)"
+        default: "Tate McRae Housewife"
+      sc_duration:
+        description: "Expected duration in seconds"
+        default: "209"
+
+jobs:
+  facebook:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      FB_URL: ${{ inputs.fb_url }}
+    steps:
+      - run: |
+          curl -s https://ipinfo.io/json | grep -E '"(city|region|org)"'
+          sudo apt-get install -y ffmpeg >/dev/null
+          pip install -U yt-dlp
+          yt-dlp --version
+      - name: List formats
+        run: yt-dlp -F "$FB_URL" || true
+      - name: Download best
+        run: |
+          yt-dlp -f "bv*+ba/b" --merge-output-format mp4 -o fb.%(ext)s "$FB_URL" || echo "FB DOWNLOAD FAILED"
+          ls -lh fb.* || true
+          ffprobe -v error -show_entries format=duration,size -of default=nw=1 fb.mp4 || true
+
+  soundcloud:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      Q: ${{ inputs.sc_query }}
+      D: ${{ inputs.sc_duration }}
+    steps:
+      - run: |
+          sudo apt-get install -y ffmpeg >/dev/null
+          pip install -U yt-dlp
+      - name: Candidates
+        run: yt-dlp --flat-playlist --print "%(duration)s | %(uploader)s | %(title)s | %(url)s" "scsearch8:$Q" || echo "SEARCH FAILED"
+      - name: Download best duration match
+        run: |
+          lo=$((D-8)); hi=$((D+8))
+          yt-dlp --match-filter "duration>=$lo & duration<=$hi" --max-downloads 1 \
+            -x --audio-format mp3 --audio-quality 0 --embed-metadata -o "sc.%(ext)s" "scsearch8:$Q" || true
+          ls -lh sc.* || echo "NO MATCH"
+          ffprobe -v error -show_entries format=duration,bit_rate -of default=nw=1 sc.mp3 || true
