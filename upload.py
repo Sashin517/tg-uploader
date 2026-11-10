@@ -275,7 +275,7 @@ def ytdlp_download(page, height, out):
     h = str(height) if str(height).isdigit() else "720"
     for f in glob.glob("dl_video.*"):
         os.remove(f)
-    fmt = "b[height<=" + h + "]/bv*[height<=" + h + "]+ba/b"
+    fmt = X.get("fmt") or ("b[height<=" + h + "]/bv*[height<=" + h + "]+ba/b")
     cmd = ["yt-dlp", "--no-playlist", "--newline", "--concurrent-fragments", "8",
            "-f", fmt, "--merge-output-format", "mp4", "-o", "dl_video.%(ext)s", page]
     status("⬇️ Downloading from the source..")
@@ -300,6 +300,22 @@ def ytdlp_download(page, height, out):
         raise RuntimeError("yt-dlp failed: " + last_line[:200])
     os.replace(files[0], out)
     return os.path.getsize(out)
+
+def ensure_h264(path):
+    try:
+        c = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0",
+                            "-show_entries", "stream=codec_name", "-of", "csv=p=0", path],
+                           capture_output=True, text=True).stdout.strip()
+    except Exception:
+        return path
+    if c in ("h264", ""):
+        return path
+    status("🎞 Converting for compatibility..")
+    out = "conv.mp4"
+    r = subprocess.run(["ffmpeg", "-y", "-i", path, "-c:v", "libx264", "-preset", "veryfast",
+                        "-crf", "23", "-pix_fmt", "yuv420p", "-c:a", "aac",
+                        "-movflags", "+faststart", out], capture_output=True)
+    return out if r.returncode == 0 and os.path.exists(out) else path
 
 async def main():
     T0 = time.time()
