@@ -317,6 +317,47 @@ def ensure_h264(path):
                         "-movflags", "+faststart", out], capture_output=True)
     return out if r.returncode == 0 and os.path.exists(out) else path
 
+async def send_with_retry(path, d, w, h, th, safe, spoiler):
+    last = None
+    for attempt, wait in enumerate([0, 20, 60, 120], 1):
+        if wait:
+            status("⏳ Telegram is busy, retrying (" + str(attempt) + "/4)..")
+            await asyncio.sleep(wait)
+        try:
+            async with Client("uploader", api_id=API_ID, api_hash=API_HASH,
+                              bot_token=TOKEN, in_memory=True) as app:
+                try:
+                    await app.send_video(CHAT, path, caption=TITLE, duration=d, width=w, height=h,
+                                         thumb=th, supports_streaming=True, file_name=safe + ".mp4",
+                                         progress=progress, has_spoiler=spoiler)
+                except TypeError:
+                    await app.send_video(CHAT, path, caption=TITLE, duration=d, width=w, height=h,
+                                         thumb=th, supports_streaming=True, file_name=safe + ".mp4",
+                                         progress=progress)
+            return
+        except Exception as e:
+            last = e
+            print("upload attempt", attempt, "failed:", type(e).__name__, str(e)[:200])
+
+    # Fallback: normal Bot API (up to 50 MB), not affected by MTProto login errors
+    if os.path.getsize(path) <= 49 * 1024 * 1024:
+        status("🔁 Trying the backup upload..")
+        try:
+            data = {"chat_id": CHAT, "caption": TITLE, "duration": int(d or 0),
+                    "width": w, "height": h, "supports_streaming": "true"}
+            if spoiler:
+                data["has_spoiler"] = "true"
+            with open(path, "rb") as f:
+                r = requests.post("https://api.telegram.org/bot" + TOKEN + "/sendVideo",
+                                  data=data, files={"video": (safe + ".mp4", f, "video/mp4")},
+                                  timeout=300)
+            if r.ok and r.json().get("ok"):
+                return
+            print("bot api fallback failed:", r.text[:200])
+        except Exception as e2:
+            print("bot api fallback error:", type(e2).__name__)
+    raise last
+
 async def main():
     T0 = time.time()
     if X.get("mode") == "audio":
