@@ -1,0 +1,40 @@
+name: Test yt-dlp Instagram
+on:
+  workflow_dispatch:
+    inputs:
+      ig_url:
+        description: "Public Instagram reel/post URL"
+        required: true
+
+jobs:
+  instagram:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      IG_URL: ${{ inputs.ig_url }}
+      IG_COOKIES: ${{ secrets.IG_COOKIES }}
+    steps:
+      - name: Setup
+        run: |
+          curl -s https://ipinfo.io/json | grep -E '"(city|region|org)"'
+          sudo apt-get install -y ffmpeg >/dev/null
+          pip install -U yt-dlp
+          yt-dlp --version
+
+      - name: A - no cookies, list formats
+        run: yt-dlp -F "$IG_URL" || echo "A FAILED"
+
+      - name: A - no cookies, download
+        run: |
+          yt-dlp -f "b" -o 'ig_a.%(ext)s' "$IG_URL" || echo "A DOWNLOAD FAILED"
+          ls -lh ig_a.* || true
+          ffprobe -v error -show_entries stream=codec_name,width,height -show_entries format=duration,size -of default=nw=1 ig_a.mp4 || true
+
+      - name: B - with cookies (only if IG_COOKIES secret exists)
+        run: |
+          if [ -z "$IG_COOKIES" ]; then echo "No IG_COOKIES secret, skipping B"; exit 0; fi
+          printf '%s\n' "$IG_COOKIES" > cookies.txt
+          yt-dlp --cookies cookies.txt -f "b" -o 'ig_b.%(ext)s' "$IG_URL" || echo "B FAILED"
+          ls -lh ig_b.* || true
+          ffprobe -v error -show_entries stream=codec_name,width,height -show_entries format=duration,size -of default=nw=1 ig_b.mp4 || true
+          rm -f cookies.txt
