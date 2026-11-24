@@ -256,10 +256,10 @@ async def audio_main():
 
     safe = "".join(c for c in (artist + " - " + title) if c not in '\\/:*?"<>|')[:80] or "song"
     status("📤 Uploading to Telegram..")
-    async with Client("uploader", api_id=API_ID, api_hash=API_HASH, bot_token=TOKEN, in_memory=True) as app:
-        await app.send_audio(CHAT, final, title=title, performer=artist or None, duration=dur,
-                             thumb=thumb_path, file_name=safe + ".mp3", progress=progress)
-    status("done uploading! 🙊❤️")
+
+    await send_with_retry(path, d, w, h, th, safe, spoiler)
+
+    status("done uploading! 🙊❤️ ...")
     print("OK")
 
 def fmt_eta(s):
